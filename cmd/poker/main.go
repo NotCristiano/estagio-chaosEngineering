@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"estagio-chaosEngineering/internal/metrics"
 	"flag"
 	"fmt"
 	"math"
@@ -13,17 +14,20 @@ import (
 
 	"estagio-chaosEngineering/internal/client"
 	"estagio-chaosEngineering/internal/reporter"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
 	// Default flag values
-	target := flag.String("target", "https://localhost:11434", "Ollama base URL")
+	target := flag.String("target", "http://localhost:11434", "Ollama base URL")
 	model := flag.String("model", "llama3.2", "Ollama model name")
 	count := flag.Int("count", 20, "Number of sends (0 = inf)")
 	interval := flag.Duration("interval", 2*time.Second, "Delay between sends")
 	timeout := flag.Duration("timeout", 10*time.Second, "Per-request timeout")
 	retries := flag.Int("retries", 3, "Max retries on failure")
-	backoff := flag.Duration("backoff", 500*time.Microsecond, "Base backoff duration between retries")
+	backoff := flag.Duration("backoff", 500*time.Millisecond, "Base backoff duration between retries")
+	metricsAddr := flag.String("metric-addr", ":9090", "Prometheus metrics address, exposes /metrics")
 	flag.Parse()
 
 	// Signal handler
@@ -38,6 +42,19 @@ func main() {
 		cancel()
 	}()
 
+	// Prometheus
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		fmt.Printf("  Metrics available at http://%s/metrics\n", *metricsAddr)
+		if err := http.ListenAndServe(*metricsAddr, mux); err != nil {
+			fmt.Printf("  [WARN] Error starting metrics server: %v\n", err)
+		}
+	}()
+
 	// Setup client
 	c := client.NewOllamaClient(*target, *model, *timeout)
 
@@ -50,6 +67,10 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("	[OK] Ollama is ready - starting probes\n")
+
+	// Track downtime for recovery on the loop bellow
+	var downtimeStart time.Time
+	wasDown := false
 
 	// Probe loop
 	var results []client.ProbeResult
@@ -66,7 +87,29 @@ func main() {
 		results = append(results, result)
 		reporter.PrintResult(result)
 
-		// Finite part when reaching requested count
+		// Record metrics
+		if result.OK() {
+			metrics.ProbeTotal.WithLabelValues("success").Inc()
+			metrics.ProbeDuration.WithLabelValues("success").Observe(result.Latency.Seconds())
+			metrics.ServiceUp.Set(1)
+
+			// If we came from downtime, record the downtime
+			if wasDown {
+				metrics.RecoveryDuration.Observe(time.Since(downtimeStart).Seconds())
+				wasDown = false
+			}
+		} else {
+			metrics.ProbeTotal.WithLabelValues("failure").Inc()
+			metrics.ProbeDuration.WithLabelValues("failure").Observe(result.Latency.Seconds())
+			metrics.ServiceUp.Set(0)
+
+			if !wasDown {
+				downtimeStart = time.Now()
+				wasDown = true
+			}
+		}
+
+		// Finite part when reaching the requested count
 		if *count != 0 && i >= *count {
 			break
 		}
