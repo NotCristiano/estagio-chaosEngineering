@@ -1,94 +1,100 @@
-# How to use
+# Chaos Engineering Poker
 
-## First Step
+Este projeto tem dois modos de execucao pelo `Makefile`:
 
-build the poker binary
+- `make run-no-monitor`: Docker local, sem Prometheus/Grafana.
+- `make run-with-monitor`: k3s com app + Prometheus + Grafana.
+
+## Primeiro setup
+
+Faz este setup uma vez (ou quando mudares de maquina/ambiente).
+
+### 1) Pre-requisitos
+
+- Docker + Docker Compose
+- `kubectl`
+- `helm`
+- `k3s` ativo (para o modo com monitoracao)
+
+Verificacao rapida:
+
 ```fish
-cd estagio-chaosEngineering
-go build -o poker ./cmd/poker
+docker --version
+docker compose version
+kubectl version --client
+helm version
+kubectl get nodes
 ```
 
----
+### 2) Setup inicial do modelo no Docker (modo local)
 
-## Docker Test
+Inicia o Ollama e, numa segunda terminal, puxa o modelo:
 
-Start ollama
 ```fish
-cd docker
-docker compose up -d
+cd /home/cristiano/GolandProjects/estagio-chaosEngineering
+make run-no-monitor
 ```
 
-Pull the model (only need to do this once)
 ```fish
 docker exec -it ollama ollama pull llama3.2
 ```
 
-Run the poker
+### 3) Setup inicial do modelo no k3s (modo monitorado)
+
+Sobe stack completa no cluster:
+
 ```fish
-./poker --target http://localhost:11434 --model llama3.2 --count 10
+cd /home/cristiano/GolandProjects/estagio-chaosEngineering
+make run-with-monitor
 ```
 
-Manual Chaos, on a second terminal kill ollama while the poker is running
-```fish
-docker stop ollama
-docker start ollama
-```
+Quando o pod do Ollama estiver `Running`, puxa o modelo dentro do cluster:
 
----
-
-## Kubernetes Test
-
-Make sure k3s (or the one of your choice) is running
-```fish
-kubectl get nodes
-```
-
-Put ollama into the cluster
-```fish
-kubectl apply -f k8s/ollama.yaml
-kubectl get pods -n chaos-production -w
-```
-
-When it's running pull the model
 ```fish
 kubectl exec -n chaos-production (kubectl get pod -n chaos-production -l app=ollama -o jsonpath='{.items[0].metadata.name}') -- ollama pull llama3.2
 ```
 
-Run the poker against the cluster (different port than before)
+## Uso diario apos setup
+
+### Sem monitoracao (mais simples)
+
+Usa quando queres apenas testar o servico localmente:
+
 ```fish
-./poker --target http://localhost:30434 --model llama3.2 --count 20
+cd /home/cristiano/GolandProjects/estagio-chaosEngineering
+make run-no-monitor
 ```
 
-Semi-Automatic Chaos, kill the pod while poker is running, k8s will restart it
+### Com Prometheus + Grafana (k3s)
+
+Usa quando queres observar metricas, disponibilidade e latencia no Grafana/Prometheus:
+
 ```fish
-kubectl delete pod -n chaos-lab -l app=ollama
+cd /home/cristiano/GolandProjects/estagio-chaosEngineering
+make run-with-monitor
 ```
 
----
+## Acesso a monitoracao
 
-## Cheat Sheet
+- Grafana e Prometheus sao instalados via Helm usando `k8s/prometheus-values.yaml`.
+- Para descobrir o endpoint do Grafana no teu cluster:
 
-Check cluster is healthy
 ```fish
-kubectl get pods -n kube-system
-kubectl get pods -n chaos-lab
+kubectl get svc -n monitoring | grep grafana
 ```
 
-Check ollama logs
+- Para inspecionar targets no Prometheus (opcional):
+
 ```fish
-kubectl logs -n chaos-lab -l app=ollama
+kubectl -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
 
-Start fresh
+## Comandos uteis de diagnostico
+
 ```fish
-kubectl delete namespace chaos-lab
-kubectl apply -f k8s/ollama.yaml
-```
-
-Poker flags
-```
---count 0        infinite mode (ctrl+c to stop)
---interval 1s    how often to probe
---timeout 60s    per request timeout (bump this for cpu inference)
---retries 3      retries before marking as failed
+kubectl get pods -n chaos-production
+kubectl get pods -n monitoring
+kubectl get servicemonitor -n chaos-production
+kubectl logs -n chaos-production -l app=chaos-poker --tail=100
+kubectl logs -n chaos-production -l app=ollama --tail=100
 ```

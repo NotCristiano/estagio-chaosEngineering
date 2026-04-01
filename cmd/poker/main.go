@@ -142,6 +142,7 @@ func probeWithRetry(ctx context.Context, c *client.OllamaClient, attempt, maxRet
 		}
 
 		if try < maxRetries {
+			metrics.RetryTotal.Inc()
 			// Exponential backoff
 			wait := time.Duration(float64(base) * math.Pow(2, float64(try)))
 			select {
