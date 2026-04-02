@@ -1,0 +1,19 @@
+grafana:
+  enabled: true
+  adminPassword: "chaos123"
+  service:
+    type: NodePort
+    nodePort: 30300
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 10s
+
+    # watch all namespaces for ServiceMonitors
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: { }
+    serviceMonitorSelector: { }
+
+
+alertmanager:
+  enabled: false

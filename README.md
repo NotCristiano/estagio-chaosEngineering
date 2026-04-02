@@ -1,94 +1,100 @@
-# How to use
+# Chaos Engineering Poker
+We will use primarly the `Makefile` to run this project:
 
-## First Step
+- `make run-no-monitor`: start Ollama locally with Docker Compose.
+- `make run-with-monitor`: installs Prometheus + Grafana in k3s, then starts Ollama.
+- `make poke`: runs the poker app.
+- `make deploy-k8s`: deploys Ollama, Poker and the monitoring stack to k8s.
+- `make kill-ollama`: kills the local Ollama in k8s so we can observe changes in grafana.
 
-build the poker binary
+## Running the poker app
+
+Run this to setup the repository on your environment:
+
+### 1) Prerequisites
+
+- Docker + Docker Compose
+- `kubectl`
+- `helm`
+- `k3s` (or another Kubernetes cluster)
+
+Quick check:
+
 ```fish
-cd estagio-chaosEngineering
-go build -o poker ./cmd/poker
+docker --version
+docker compose version
+kubectl version --client
+helm version
+kubectl get nodes
 ```
 
----
+### 2) Local Ollama only
 
-## Docker Test
+Start Ollama in the foreground:
 
-Start ollama
 ```fish
-cd docker
-docker compose up -d
+make run-no-monitor
 ```
 
-Pull the model (only need to do this once)
+### 3) Ollama + monitoring
+
+Install the monitoring stack in k3s and start Ollama in the foreground:
+
+```fish
+make run-with-monitor
+```
+
+This does two things:
+
+1. Installs Prometheus + Grafana using `k8s/prometheus-values.yaml`.
+2. Starts Ollama locally with Docker Compose.
+
+If you need the model loaded into the local Ollama container, run the follow:
+
 ```fish
 docker exec -it ollama ollama pull llama3.2
 ```
 
-Run the poker
+### 4) Running the poker
+
+
+The poker app is separate from Ollama. It connects to the local Ollama instance at `http://localhost:11434`.
+
+Start it with:
+
 ```fish
-./poker --target http://localhost:11434 --model llama3.2 --count 10
+make poke
 ```
 
-Manual Chaos, on a second terminal kill ollama while the poker is running
+`make poke` builds the binary if needed and then runs it forever with:
+
+- target: `http://localhost:11434`
+- model: `llama3.2`
+- interval: `5s`
+- count: `0` (infinite)
+
+Stop it with `Ctrl+C`.
+
+### 5) Deploying everything to k8s
+You can deploy Ollama, the poker app and the monitoring stack to k3s with:
+
 ```fish
-docker stop ollama
-docker start ollama
+make deploy-k8s
 ```
 
----
+This will install the monitoring stack using `k8s/prometheus-values.yaml` and then deploy Ollama and the poker app.
 
-## Kubernetes Test
-
-Make sure k3s (or the one of your choice) is running
+### 6) Killing Ollama in k8s
+You can kill Ollama in k8s with:
 ```fish
-kubectl get nodes
+make kill-ollama
 ```
+This will temporarily remove the Ollama deployment from k8s, that way we can observe changes in grafana. Like the success and failure rate.
 
-Put ollama into the cluster
+### 7) Port forwarding (JUST IN CASE)
+If for some reason it's not working for you, try to setup port forwarding, here's an example:
+
 ```fish
-kubectl apply -f k8s/ollama.yaml
-kubectl get pods -n chaos-production -w
-```
-
-When it's running pull the model
-```fish
-kubectl exec -n chaos-production (kubectl get pod -n chaos-production -l app=ollama -o jsonpath='{.items[0].metadata.name}') -- ollama pull llama3.2
-```
-
-Run the poker against the cluster (different port than before)
-```fish
-./poker --target http://localhost:30434 --model llama3.2 --count 20
-```
-
-Semi-Automatic Chaos, kill the pod while poker is running, k8s will restart it
-```fish
-kubectl delete pod -n chaos-lab -l app=ollama
-```
-
----
-
-## Cheat Sheet
-
-Check cluster is healthy
-```fish
-kubectl get pods -n kube-system
-kubectl get pods -n chaos-lab
-```
-
-Check ollama logs
-```fish
-kubectl logs -n chaos-lab -l app=ollama
-```
-
-Start fresh
-```fish
-kubectl delete namespace chaos-lab
-kubectl apply -f k8s/ollama.yaml
-```
-
-Poker flags
-```
---count 0        infinite mode (ctrl+c to stop)
---interval 1s    how often to probe
---timeout 60s    per request timeout (bump this for cpu inference)
---retries 3      retries before marking as failed
+kubectl -n monitoring port-forward svc/prometheus-grafana 3000:80
+kubectl -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```

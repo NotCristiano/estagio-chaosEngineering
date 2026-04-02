@@ -1,0 +1,72 @@
+---
+# Poker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-poker
+  namespace: chaos-production
+  labels:
+    app: chaos-poker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-poker
+  template:
+    metadata:
+      labels:
+        app: chaos-poker
+      annotations:
+        # Prometheus auto-discovery via annotations
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: poker
+          image: chaos-ollama-poker:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --target=http://ollama:11434
+            - --model=llama3.2
+            - --count=0
+            - --interval=5s
+            - --timeout=60s
+            - --retries=3
+            - --metric-addr=:9090
+          ports:
+            - name: metrics
+              containerPort: 9090
+
+---
+# Service to expose poker metrics port
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-poker
+  namespace: chaos-production
+  labels:
+    app: chaos-poker
+spec:
+  selector:
+    app: chaos-poker
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+
+---
+# ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: chaos-poker
+  namespace: chaos-production
+spec:
+  selector:
+    matchLabels:
+      app: chaos-poker
+  endpoints:
+    - port: metrics
+      interval: 10s
+      path: /metrics
