@@ -20,6 +20,7 @@ spec:
             - name: PORT
               value: "45876"
             - name: KEY
+            # This value will be different from computer to computer
               value: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIHAB+jIDtSeGgvK8SIVoaboe8QHuSxz91ETabM3RCC0"
           volumeMounts:
             - name: container-sock
