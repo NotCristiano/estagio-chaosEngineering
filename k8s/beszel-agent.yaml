@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: beszel-agent
-  namespace: default # Change if you want it in the beszel namespace
+  namespace: default
 spec:
   selector:
     matchLabels:
@@ -12,7 +12,7 @@ spec:
       labels:
         app: beszel-agent
     spec:
-      hostNetwork: true # Required to monitor host network stats and bind the port
+      hostNetwork: true
       containers:
         - name: beszel-agent
           image: henrygd/beszel-agent:latest
@@ -23,7 +23,6 @@ spec:
               value: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIHAB+jIDtSeGgvK8SIVoaboe8QHuSxz91ETabM3RCC0"
           volumeMounts:
             - name: container-sock
-              # Change to /run/containerd/containerd.sock if your k8s uses containerd
               mountPath: /var/run/docker.sock
               readOnly: true
       volumes:
