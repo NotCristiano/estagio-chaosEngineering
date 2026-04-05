@@ -1,0 +1,10 @@
+replicaCount: 1
+
+service:
+  type: NodePort
+  port: 8090
+  nodePort: 30301
+
+persistence:
+  enabled: true
+  size: 1Gi

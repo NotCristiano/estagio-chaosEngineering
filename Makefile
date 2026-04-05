@@ -5,10 +5,11 @@ IMAGE := chaos-ollama-poker:latest # Name and tag for the Docker image
 IMAGE_TAR := /tmp/chaos-ollama-poker.tar # Temp path for the Docker build output
 NAMESPACE := chaos-production # Kubernetes namespace for the application
 MON_NS := monitoring # Kubernetes namespace for monitoring stack (Prometheus/Grafana)
+BESZEL_NS := $(MON_NS) # Using the same namespace for monitoring components
 GRAFANA_URL := http://localhost:30300 # Local URL for Grafana (port forwarding assumed)
 
 # Where we're telling Make that the names bellow are not files
-.PHONY: run-no-monitor run-with-monitor monitoring-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs-poker build-docker restart-poker-k8s kill-ollama
+.PHONY: run-no-monitor run-with-monitor grafana-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs-poker build-docker restart-poker-k8s kill-ollama beszel-setup
 
 # run-with-monitor and run-no-monitor are now kinda deprecated since I remembered that I needed to use k8s, but still nice to have I guess
 
@@ -17,18 +18,34 @@ run-no-monitor:
 	docker compose -f docker/docker-compose.yml up
 
 # Docker with Prometheus + Grafana monitoring
-run-with-monitor: monitoring-setup
+run-with-monitor: grafana-setup
 	@echo "Grafana is available at: $(GRAFANA_URL)"
 	@echo "Use admin / chaos123 to log in"
 	docker compose -f docker/docker-compose.yml up
 
 # Block that sets up Prometheus and Grafana using Helm
-monitoring-setup:
+grafana-setup:
 	@echo "Setting up Prometheus + Grafana"
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack -n $(MON_NS) --create-namespace -f k8s/prometheus-values.yaml
 	@echo "Monitoring stack ready."
+
+# Block that sets up Beszel for monitoring
+beszel-setup:
+	@echo "Setting up Beszel"
+	helm repo add beszel https://gitlab.com/api/v4/projects/71014929/packages/helm/stable
+	helm repo update
+	helm upgrade --install beszel beszel/beszel -n $(BESZEL_NS) --create-namespace -f k8s/beszel-values.yaml
+	kubectl -n $(BESZEL_NS) patch svc beszel --type=json -p='[{"op":"replace","path":"/spec/type","value":"NodePort"},{"op":"replace","path":"/spec/ports/0/nodePort","value":30301}]'
+	@kubectl -n $(BESZEL_NS) get svc beszel
+	@echo "Beszel setup complete."
+
+beszel-agent:
+	@echo "Deploying Beszel agent to monitor Ollama..."
+	kubectl apply -f k8s/beszel-agent.yaml
+	@echo "Beszel agent deployed. Check its status with: kubectl -n $(BESZEL_NS) get pods -l app=beszel-agent"
+
 
 # Helper that builds the poker binary
 build-poker:
@@ -46,14 +63,19 @@ build-docker:
 	docker build -f $(DOCKERFILE) -t $(IMAGE) .
 	@echo "[OK] Docker image built: $(IMAGE)"
 
-# Deploy poker and monitoring to Kubernetes
-deploy-k8s: monitoring-setup build-docker
+# Deploy poker and grafana to Kubernetes
+deploy-k8s: grafana-setup build-docker
 	@echo "Deploying poker to Kubernetes namespace $(NAMESPACE)..."
 	kubectl create namespace $(NAMESPACE) 2>/dev/null || true
 	kubectl apply -f k8s/poker-deployment.yaml
 	@echo "[OK] Poker deployed to $(NAMESPACE)"
 	@echo "To check poker pod status: kubectl -n $(NAMESPACE) get pods -l app=chaos-poker"
 	@echo "To view logs: make logs-poker"
+
+# Deploy poker, grafana and beszel to Kubernetes
+deploy-k8s-b:
+	$(MAKE) beszel-setup
+	$(MAKE) deploy-k8s
 
 # Show poker logs in Kubernetes
 logs-poker:
