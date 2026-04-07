@@ -70,3 +70,16 @@ kill-ollama:
 	@echo "Killing Ollama pod in $(NAMESPACE)..."
 	kubectl -n $(NAMESPACE) delete pod -l app=ollama 2>/dev/null || echo "No Ollama pod found"
 	@echo "[OK] Ollama pod killed (Kubernetes will restart it)"
+
+
+# Completely tears down the project and stops all background processes
+teardown:
+	@echo "Tearing down the environment..."
+	# Stop any Docker Compose containers
+	docker compose -f docker/docker-compose.yml down 2>/dev/null || true
+	# Gracefully uninstall Helm charts
+	helm uninstall beszel -n $(BESZEL_NS) 2>/dev/null || true
+	helm uninstall prometheus -n $(MON_NS) 2>/dev/null || true
+	# Delete the Kubernetes namespaces
+	kubectl delete namespace $(NAMESPACE) $(MON_NS) --ignore-not-found=true
+	@echo "Everything is cleaned up."
