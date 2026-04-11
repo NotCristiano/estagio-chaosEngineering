@@ -28,6 +28,7 @@ func main() {
 	retries := flag.Int("retries", 3, "Max retries on failure")
 	backoff := flag.Duration("backoff", 500*time.Millisecond, "Base backoff duration between retries")
 	metricsAddr := flag.String("metric-addr", ":9090", "Prometheus metrics address, exposes /metrics")
+	waitTimeout := flag.Duration("wait-timeout", 5*time.Minute, "How long to wait for Ollama to be ready")
 	flag.Parse()
 
 	// Signal handler
@@ -62,7 +63,7 @@ func main() {
 
 	// Waiting for Ollama to be ready
 	fmt.Printf("	Checking Ollama health at %s/api/tags", *target)
-	if err := waitForOllama(ctx, c, 30*time.Second); err != nil {
+	if err := waitForOllama(ctx, c, *waitTimeout); err != nil {
 		fmt.Printf("	[ERROR] Ollama not reachable: %v\n", err)
 		os.Exit(1)
 	}

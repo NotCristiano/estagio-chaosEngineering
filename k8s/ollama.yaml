@@ -26,6 +26,19 @@ spec:
       labels:
         app: ollama
     spec:
+      # We use an init container to pull the model before starting the main container
+      # This ensures the model is ready when the main container starts (this problem happens on low end machines LIKE MINE)
+      initContainers:
+        - name: model-puller
+          image: ollama/ollama:latest
+          command: ["sh", "-c", "ollama serve & sleep 3 && ollama pull llama3.2; kill %1 2>/dev/null; exit 0"]
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1"
       containers:
         - name: ollama
           image: ollama/ollama:latest

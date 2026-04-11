@@ -7,8 +7,10 @@ NAMESPACE := chaos-production # Kubernetes namespace for the application
 MON_NS := monitoring # Kubernetes namespace for monitoring stack (Prometheus/Grafana)
 GRAFANA_URL := http://localhost:30300 # Local URL for Grafana (port forwarding assumed)
 
+#TODO: REWORK MAKEFILE TO MAKE IT PRETTIER AND LESS CLUSTERED
+
 # Where we're telling Make that the names bellow are not files
-.PHONY: run-no-monitor run-with-monitor monitoring-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs-poker build-docker restart-poker-k8s kill-ollama
+.PHONY: run-no-monitor run-with-monitor monitoring-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs-poker build-docker restart-poker-k8s kill-ollama logs-ollama logs-ollama-init pause resume
 
 # run-with-monitor and run-no-monitor are now kinda deprecated since I remembered that I needed to use k8s, but still nice to have I guess
 
@@ -48,10 +50,14 @@ build-docker:
 
 # Deploy poker and monitoring to Kubernetes
 deploy-k8s: monitoring-setup build-docker
-	@echo "Deploying poker to Kubernetes namespace $(NAMESPACE)..."
+	@echo "Importing image into k3s..."
+	docker save $(IMAGE) | sudo k3s ctr images import -
+	@echo "Deploying to Kubernetes namespace $(NAMESPACE)..."
 	kubectl create namespace $(NAMESPACE) 2>/dev/null || true
+	kubectl apply -f k8s/ollama.yaml
 	kubectl apply -f k8s/poker-deployment.yaml
-	@echo "[OK] Poker deployed to $(NAMESPACE)"
+	kubectl apply -f k8s/dashboards/
+	@echo "[OK] Deployed to $(NAMESPACE)"
 	@echo "To check poker pod status: kubectl -n $(NAMESPACE) get pods -l app=chaos-poker"
 	@echo "To view logs: make logs-poker"
 
@@ -64,6 +70,12 @@ logs-poker:
 		echo "Tailing logs from $$POD..."; \
 		kubectl -n $(NAMESPACE) logs -f $$POD; \
 	fi
+
+logs-ollama:
+	kubectl logs -f -n $(NAMESPACE) -l app=ollama -c ollama
+
+logs-ollama-init:
+	kubectl logs -f -n $(NAMESPACE) -l app=ollama -c model-puller
 
 # Kill Ollama pod (chaos testing - forces restart)
 kill-ollama:
@@ -78,8 +90,31 @@ teardown:
 	# Stop any Docker Compose containers
 	docker compose -f docker/docker-compose.yml down 2>/dev/null || true
 	# Gracefully uninstall Helm charts
-	helm uninstall beszel -n $(BESZEL_NS) 2>/dev/null || true
 	helm uninstall prometheus -n $(MON_NS) 2>/dev/null || true
 	# Delete the Kubernetes namespaces
 	kubectl delete namespace $(NAMESPACE) $(MON_NS) --ignore-not-found=true
 	@echo "Everything is cleaned up."
+
+pause:
+	@echo "Pausing all workloads in $(NAMESPACE)..."
+	kubectl scale deployment/ollama -n $(NAMESPACE) --replicas=0
+	kubectl scale deployment/chaos-poker -n $(NAMESPACE) --replicas=0
+	kubectl scale -n $(MON_NS) \
+		deployment/prometheus-grafana \
+		deployment/prometheus-kube-prometheus-operator \
+		deployment/prometheus-kube-state-metrics \
+		--replicas=0
+	kubectl scale statefulset/prometheus-prometheus-kube-prometheus-prometheus -n $(MON_NS) --replicas=0
+	@echo "[OK] All workloads paused. Data and config preserved."
+
+resume:
+	@echo "Resuming all workloads..."
+	kubectl scale deployment/ollama -n $(NAMESPACE) --replicas=1
+	kubectl scale deployment/chaos-poker -n $(NAMESPACE) --replicas=1
+	kubectl scale -n $(MON_NS) \
+		deployment/prometheus-grafana \
+		deployment/prometheus-kube-prometheus-operator \
+		deployment/prometheus-kube-state-metrics \
+		--replicas=1
+	kubectl scale statefulset/prometheus-prometheus-kube-prometheus-prometheus -n $(MON_NS) --replicas=1
+	@echo "[OK] Workloads resumed."cho "[OK] Workloads resumed."
