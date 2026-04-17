@@ -6,6 +6,9 @@ grafana:
     nodePort: 30300
 
 prometheus:
+  service:
+    type: NodePort
+    nodePort: 30900
   prometheusSpec:
     scrapeInterval: 10s
 
