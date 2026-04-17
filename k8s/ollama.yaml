@@ -26,22 +26,10 @@ spec:
       labels:
         app: ollama
     spec:
-      # We use an init container to pull the model before starting the main container
-      # This ensures the model is ready when the main container starts (this problem happens on low end machines LIKE MINE)
-      initContainers:
-        - name: model-puller
-          image: ollama/ollama:latest
-          command: ["sh", "-c", "ollama serve & sleep 3 && ollama pull llama3.2; kill %1 2>/dev/null; exit 0"]
-          volumeMounts:
-            - name: ollama-data
-              mountPath: /root/.ollama
-          resources:
-            requests:
-              memory: "1Gi"
-              cpu: "1"
       containers:
         - name: ollama
-          image: ollama/ollama:latest
+          image: chaos-ollama-model:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 11434
               name: http
@@ -55,9 +43,6 @@ spec:
             requests:
               memory: "4Gi"
               cpu: "1"
-          volumeMounts:
-            - name: ollama-data
-              mountPath: /root/.ollama
           livenessProbe:
             httpGet:
               path: /api/tags
@@ -71,25 +56,6 @@ spec:
               port: 11434
             initialDelaySeconds: 20
             periodSeconds: 5
-      volumes:
-        - name: ollama-data
-          persistentVolumeClaim:
-            claimName: ollama-pvc
-
----
-# Persistent volume claim
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ollama-pvc
-  namespace: chaos-production
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
-
 ---
 # Service, internal access
 apiVersion: v1
