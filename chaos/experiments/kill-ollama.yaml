@@ -1,0 +1,51 @@
+version: 1.0.0
+title: "Does Ollama revive itself without killing the poker?"
+description: "Kills the Ollama pod and checks if it revives itself without affecting the poker service."
+
+configuration:
+  prometheus_base_url: "http://localhost:30900"
+
+steady-state-hypothesis:
+  title: "poker_service_up is 1"
+  probes:
+    - type: probe
+      name: "check_prometheus_poker_up"
+      tolerance:
+        type: jsonpath
+        path: "$.data.result[0].value[1]"
+        expect: "1"
+      provider:
+        type: python
+        module: chaosprometheus.probes
+        func: query
+        arguments:
+          query: "poker_service_up{container=\"poker\"}"
+
+method:
+  - type: action
+    name: "terminate_pod_ollama"
+    provider:
+      type: python
+      module: chaosk8s.pod.actions
+      func: terminate_pods
+      arguments:
+        label_selector: "app=ollama"
+        ns: "chaos-production"
+        rand: true
+    pauses:
+      after: 20
+
+  - type: probe
+    name: "check_ollama_died"
+    tolerance:
+      type: jsonpath
+      path: "$.data.result[0].value[1]"
+      expect: "0"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "poker_service_up{container=\"poker\"}"
+    pauses:
+        after: 20

@@ -1,7 +1,0 @@
-# Prometheus scrape config snippet (NOT a Kubernetes manifest).
-# Use this only when you want static target scraping instead of ServiceMonitor.
-- job_name: "chaos-poker-local"
-  static_configs:
-    - targets: ["YOUR_NODE_IP:9090"]
-      labels:
-        app: chaos-poker
