@@ -6,6 +6,7 @@ IMAGE_TAR := /tmp/chaos-ollama-poker.tar # Temp path for the Docker build output
 NAMESPACE := chaos-production # Kubernetes namespace for the application
 MON_NS := monitoring # Kubernetes namespace for monitoring stack (Prometheus/Grafana)
 GRAFANA_URL := http://localhost:30300 # Local URL for Grafana (port forwarding assumed)
+OLLAMA_IMAGE := chaos-ollama-model:latest # Name and tag for the Ollama Docker image
 
 #TODO: REWORK MAKEFILE TO MAKE IT PRETTIER AND LESS CLUSTERED
 
@@ -37,6 +38,10 @@ build-poker:
 	@echo "Building poker binary..."
 	CGO_ENABLED=0 go build -o poker ./cmd/poker
 
+build-ollama:
+	@echo "Building Ollama image..."
+	docker build -f docker/ollama.Dockerfile -t ${OLLAMA_IMAGE} .
+
 # Run the poker binary with pre-specified parameters
 poke: build-poker
 	@echo "Starting poker"
@@ -49,9 +54,10 @@ build-docker:
 	@echo "[OK] Docker image built: $(IMAGE)"
 
 # Deploy poker and monitoring to Kubernetes
-deploy-k8s: monitoring-setup build-docker
+deploy-k8s: monitoring-setup build-docker build-ollama
 	@echo "Importing image into k3s..."
 	docker save $(IMAGE) | sudo k3s ctr images import -
+	docker save $(OLLAMA_IMAGE) | sudo k3s ctr images import -
 	@echo "Deploying to Kubernetes namespace $(NAMESPACE)..."
 	kubectl create namespace $(NAMESPACE) 2>/dev/null || true
 	kubectl apply -f k8s/ollama.yaml
