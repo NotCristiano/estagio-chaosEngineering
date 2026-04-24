@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +30,7 @@ func main() {
 	backoff := flag.Duration("backoff", 500*time.Millisecond, "Base backoff duration between retries")
 	metricsAddr := flag.String("metric-addr", ":9090", "Prometheus metrics address, exposes /metrics")
 	waitTimeout := flag.Duration("wait-timeout", 5*time.Minute, "How long to wait for Ollama to be ready")
+	workers := flag.Int("workers", 1, "Number of concurrent workers")
 	flag.Parse()
 
 	// Signal handler
@@ -67,66 +69,81 @@ func main() {
 		fmt.Printf("	[ERROR] Ollama not reachable: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("	[OK] Ollama is ready - starting probes\n")
+	fmt.Printf("	[OK] Ollama is ready - starting %d workers\n", *workers)
 
-	// Track downtime for recovery on the loop bellow
-	var downtimeStart time.Time
-	wasDown := false
+	// Concurrent workers setup
+	var wg sync.WaitGroup
+	resultCh := make(chan client.ProbeResult, *workers*10)
 
-	// Probe loop
-	var results []client.ProbeResult
 	start := time.Now()
 
-	for i := 1; ; i++ {
-		select {
-		case <-ctx.Done():
-			goto done
-		default:
-		}
+	for w := 1; w < *workers; w++ {
+		wg.Add(1)
 
-		result := probeWithRetry(ctx, c, i, *retries, *backoff)
-		results = append(results, result)
-		reporter.PrintResult(result)
+		go func(workerID int) {
+			defer wg.Done()
+			var downtimeStart time.Time
+			wasDown := false
 
-		// Record metrics
-		if result.OK() {
-			metrics.ProbeTotal.WithLabelValues("success").Inc()
-			metrics.ProbeDuration.WithLabelValues("success").Observe(result.Latency.Seconds())
-			metrics.ServiceUp.Set(1)
+			for i := 1; ; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 
-			// If we came from downtime, record the downtime
-			if wasDown {
-				metrics.RecoveryDuration.Observe(time.Since(downtimeStart).Seconds())
-				wasDown = false
+				result := probeWithRetry(ctx, c, i, *retries, *backoff)
+
+				resultCh <- result
+
+				if result.OK() {
+					metrics.ProbeTotal.WithLabelValues("success").Inc()
+					metrics.ProbeDuration.WithLabelValues("success").Observe(result.Latency.Seconds())
+					metrics.ServiceUp.Set(1)
+
+					if wasDown {
+						metrics.RecoveryDuration.Observe(time.Since(downtimeStart).Seconds())
+						wasDown = false
+					}
+
+				} else {
+					metrics.ProbeTotal.WithLabelValues("failure").Inc()
+					metrics.ProbeDuration.WithLabelValues("failure").Observe(result.Latency.Seconds())
+					metrics.ServiceUp.Set(0)
+
+					if !wasDown {
+						downtimeStart = time.Now()
+						wasDown = true
+					}
+				}
+
+				if *count != 0 && i >= *count {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(*interval):
+				}
 			}
-		} else {
-			metrics.ProbeTotal.WithLabelValues("failure").Inc()
-			metrics.ProbeDuration.WithLabelValues("failure").Observe(result.Latency.Seconds())
-			metrics.ServiceUp.Set(0)
-
-			if !wasDown {
-				downtimeStart = time.Now()
-				wasDown = true
-			}
-		}
-
-		// Finite part when reaching the requested count
-		if *count != 0 && i >= *count {
-			break
-		}
-
-		select {
-		case <-ctx.Done():
-			goto done
-		case <-time.After(*interval):
-		}
+		}(w)
 	}
 
-done:
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var results []client.ProbeResult
+	for result := range resultCh {
+		results = append(results, result)
+		reporter.PrintResult(result)
+	}
+
 	summary := reporter.BuildSummary(results, time.Since(start))
 	reporter.PrintSummary(summary)
 
-	// Exit non-zero if +50% failed
 	if summary.Failures > summary.Total/2 {
 		os.Exit(1)
 	}
