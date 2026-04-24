@@ -5,19 +5,22 @@ IMAGE := chaos-ollama-poker:latest # Name and tag for the Docker image
 IMAGE_TAR := /tmp/chaos-ollama-poker.tar # Temp path for the Docker build output
 NAMESPACE := chaos-production # Kubernetes namespace for the application
 MON_NS := monitoring # Kubernetes namespace for monitoring stack (Prometheus/Grafana)
+MESH_NS := chaos-testing # Kubernetes namespace for Chaos Mesh
 GRAFANA_URL := http://localhost:30300 # Local URL for Grafana (port forwarding assumed)
 OLLAMA_IMAGE := chaos-ollama-model:latest # Name and tag for the Ollama Docker image
 
 # Where we're telling Make that the names bellow are not files
-.PHONY: monitoring-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs build-docker restart-poker-k8s kill-ollama logs-ollama logs-ollama-init pause resume teardown
+.PHONY: helm-setup poke build-poker deploy-poker-k8s delete-poker-k8s logs build-docker restart-poker-k8s kill-ollama logs-ollama logs-ollama-init pause resume teardown
 
-# Block that sets up Prometheus and Grafana using Helm
-monitoring-setup:
-	@echo "Setting up Prometheus + Grafana"
+# Block that sets up helm related repos
+helm-setup:
+	@echo "Setting up Prometheus, Grafana and Chaos Mesh Helm repositories..."
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo add chaos-mesh https://charts.chaos-mesh.org
 	helm repo update
 	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack -n $(MON_NS) --create-namespace -f k8s/prometheus-values.yaml
-	@echo "Monitoring stack ready."
+	helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh -n $(MESH_NS) --create-namespace -f k8s/chaos-mesh-values.yaml
+	@echo "Helm repositories ready."
 
 build-ollama:
 	@echo "Building Ollama image..."
@@ -29,7 +32,7 @@ build-docker:
 	@echo "[OK] Docker image built: $(IMAGE)"
 
 # Deploy poker and monitoring to Kubernetes
-deploy-k8s: monitoring-setup build-docker build-ollama
+deploy-k8s: helm-setup build-docker build-ollama
 	@echo "Importing image into k3s..."
 	docker save $(IMAGE) | sudo k3s ctr images import -
 	docker save $(OLLAMA_IMAGE) | sudo k3s ctr images import -
