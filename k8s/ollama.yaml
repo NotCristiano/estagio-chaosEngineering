@@ -47,6 +47,7 @@ spec:
             httpGet:
               path: /api/tags
               port: 11434
+            timeoutSeconds: 20
             initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 3

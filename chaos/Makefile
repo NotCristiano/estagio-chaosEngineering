@@ -1,4 +1,4 @@
-.PHONY: setup run report clean
+.PHONY: setup kill-ollama run-latency report clean
 
 setup:
 	@echo "Setting up the environment and installing dependencies..."
@@ -6,10 +6,13 @@ setup:
 	uv pip install chaostoolkit chaostoolkit-kubernetes chaostoolkit-prometheus chaostoolkit-reporting chaostoolkit-lib[jsonpath]
 	@echo "[OK] Dependencies installed successfully!"
 
-# For now just the ollama kill experiment, but we will add more in the future
-run:
+kill-ollama:
 	@echo "Running kill-ollama experiment..."
 	uv run chaos run experiments/kill-ollama.yaml
+
+run-latency:
+	@echo "A iniciar a injeção de latência de rede..."
+	uv run chaos run experiments/latency-ollama.yaml
 
 # WARNING: pandoc must be installed on the system for this to work
 report:
