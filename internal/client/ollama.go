@@ -47,11 +47,17 @@ func (r ProbeResult) OK() bool {
 
 // NewOllamaClient creates a new OllamaClient
 func NewOllamaClient(baseURL, model string, timeout time.Duration) *OllamaClient {
+
+	customTransport := &http.Transport{
+		DisableKeepAlives: true, // we force a new connection for every request
+	}
+
 	return &OllamaClient{
 		BaseURL: baseURL,
 		Model:   model,
 		HTTPClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: customTransport,
 		},
 	}
 }

@@ -1,0 +1,60 @@
+version: 1.0.0
+title: "Poker survives DNS error?"
+description: "Inject DNS errors into poker. Will fail because of retries but should come back up."
+
+configuration:
+  prometheus_base_url: "http://localhost:30900"
+
+steady-state-hypothesis:
+  title: "Service is UP (1)"
+  probes:
+    - type: probe
+      name: "check_prometheus_poker_up"
+      tolerance:
+        type: jsonpath
+        path: "$.data.result[0].value[1]"
+        expect: "1"
+      provider:
+        type: python
+        module: chaosprometheus.probes
+        func: query
+        arguments:
+          query: "poker_service_up{container=\"poker\"}"
+
+method:
+  - type: action
+    name: "inject_dns_error"
+    provider:
+      type: process
+      path: "kubectl"
+      arguments:
+        - "apply"
+        - "-f"
+        - "experiments/chaos-mesh/dns-failure.yaml"
+    pauses:
+      after: 25
+
+  - type: probe
+    name: "check_poker_revived"
+    tolerance:
+      type: jsonpath
+      path: "$.data.result[0].value[1]"
+      expect: "1"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "poker_service_up{container=\"poker\"}"
+    pauses:
+      after: 10
+
+  - type: action
+    name: "cleanup"
+    provider:
+      type: process
+      path: "kubectl"
+      arguments:
+        - "delete"
+        - "-f"
+        - "experiments/chaos-mesh/dns-failure.yaml"
