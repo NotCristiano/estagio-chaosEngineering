@@ -1,4 +1,4 @@
-.PHONY: setup kill-ollama run-latency report clean
+.PHONY: setup kill-ollama run-latency run-loss report clean
 
 setup:
 	@echo "Setting up the environment and installing dependencies..."
@@ -17,6 +17,10 @@ run-latency:
 run-loss:
 	@echo "Running network-loss experiment..."
 	uv run chaos run experiments/loss-ollama.yaml
+
+run-stress-cpu:
+	@echo "Running cpu-hog experiment..."
+	uv run chaos run experiments/cpu-stress-ollama.yaml
 
 # WARNING: pandoc must be installed on the system for this to work
 report:

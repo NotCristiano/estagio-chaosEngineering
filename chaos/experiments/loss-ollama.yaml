@@ -30,7 +30,7 @@ method:
       arguments:
         - "apply"
         - "-f"
-        - "experiments/network-loss.yaml"
+        - "experiments/chaos-mesh/network-loss.yaml"
     pauses:
       after: 35
 
@@ -70,4 +70,4 @@ method:
       arguments:
         - "delete"
         - "-f"
-        - "experiments/network-loss.yaml"
+        - "experiments/chaos-mesh/network-loss.yaml"
