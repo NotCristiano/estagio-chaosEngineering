@@ -11,8 +11,12 @@ kill-ollama:
 	uv run chaos run experiments/kill-ollama.yaml
 
 run-latency:
-	@echo "A iniciar a injeção de latência de rede..."
+	@echo "Running latency-ollama experiment..."
 	uv run chaos run experiments/latency-ollama.yaml
+
+run-loss:
+	@echo "Running network-loss experiment..."
+	uv run chaos run experiments/loss-ollama.yaml
 
 # WARNING: pandoc must be installed on the system for this to work
 report:

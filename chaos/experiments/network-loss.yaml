@@ -1,0 +1,15 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: ollama-loss
+  namespace: chaos-production
+spec:
+  action: loss
+  mode: all
+  selector:
+    labelSelectors:
+      app: ollama
+  loss:
+    loss: '80' # packet loss
+    correlation: '50' # correlation, X% chance of the next packet to be lost
+  duration: "45s"
