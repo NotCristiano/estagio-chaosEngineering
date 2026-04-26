@@ -1,0 +1,15 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: ollama-cpu-hog
+  namespace: chaos-production
+spec:
+  mode: all
+  selector:
+    labelSelectors:
+      app: ollama
+  stressors:
+    cpu:
+      workers: 4 # number of cpu cores used
+      load: 100
+  duration: "45s"

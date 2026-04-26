@@ -4,3 +4,10 @@ chaosDaemon:
 
   # This is mandatory if using k3s since its different than the actual k8s
   socketPath: /run/k3s/containerd/containerd.sock
+
+dashboard:
+  create: true
+  securityMode: false
+  service:
+    type: NodePort
+    nodePort: 30233

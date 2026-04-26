@@ -30,7 +30,7 @@ method:
       arguments:
         - "apply"
         - "-f"
-        - "experiments/network-delay.yaml"
+        - "experiments/chaos-mesh/network-delay.yaml"
     pauses:
       after: 20
 
@@ -57,4 +57,4 @@ method:
       arguments:
         - "delete"
         - "-f"
-        - "experiments/network-delay.yaml"
+        - "experiments/chaos-mesh/network-delay.yaml"
