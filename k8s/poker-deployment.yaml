@@ -35,7 +35,7 @@ spec:
             - --retries=1
             - --metric-addr=:9090
             - --wait-timeout=5m
-            - --workers=40
+            - --workers=1
           ports:
             - name: metrics
               containerPort: 9090

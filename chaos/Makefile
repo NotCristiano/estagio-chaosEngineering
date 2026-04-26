@@ -22,6 +22,10 @@ run-stress-cpu:
 	@echo "Running cpu-hog experiment..."
 	uv run chaos run experiments/cpu-stress-ollama.yaml
 
+run-dns:
+	@echo "Running dns-failure experiment..."
+	uv run chaos run experiments/dns-poker.yaml
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."

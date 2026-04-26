@@ -77,7 +77,7 @@ func main() {
 
 	start := time.Now()
 
-	for w := 1; w < *workers; w++ {
+	for w := 1; w <= *workers; w++ {
 		wg.Add(1)
 
 		go func(workerID int) {

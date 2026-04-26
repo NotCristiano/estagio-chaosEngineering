@@ -1,0 +1,14 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: dns-failure
+  namespace: chaos-production
+spec:
+  action: error
+  mode: all
+  selector:
+    labelSelectors:
+      app: chaos-poker
+  patterns:
+    - 'ollama*'
+  duration: "15s"
