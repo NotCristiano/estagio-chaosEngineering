@@ -17,11 +17,17 @@ type OllamaClient struct {
 	HTTPClient *http.Client
 }
 
+type GenerateOptions struct {
+	Temperature float64 `json:"temperature"`
+	NumCtx      int     `json:"num_ctx"`
+}
+
 // GenerateRequest /api/generate
 type GenerateRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	Stream bool   `json:"stream"`
+	Model   string          `json:"model"`
+	Prompt  string          `json:"prompt"`
+	Stream  bool            `json:"stream"`
+	Options GenerateOptions `json:"options"`
 }
 
 // GenerateResponse holds what we care about from /api/generate
@@ -71,7 +77,12 @@ func (c *OllamaClient) Ping(ctx context.Context, attempt int) ProbeResult {
 		Model:  c.Model,
 		Prompt: "Hello",
 		Stream: false,
+		Options: GenerateOptions{
+			Temperature: 0.0, // Greedy
+			NumCtx:      2048,
+		},
 	})
+
 	if err != nil {
 		result.Error = fmt.Errorf("marshal error: %w", err)
 		result.Latency = time.Since(start)

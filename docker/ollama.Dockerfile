@@ -1,4 +1,3 @@
 FROM ollama/ollama:latest
 
-# We pull locally the model, wait a bit and then we commit the image
-RUN nohup bash -c "ollama serve &" && sleep 5 && ollama pull llama3.2
+RUN ollama serve & until ollama list >/dev/null 2>&1; do sleep 1; done && ollama pull qwen3.5:2b

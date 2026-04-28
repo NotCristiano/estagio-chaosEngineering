@@ -28,7 +28,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --target=http://ollama:11434
-            - --model=llama3.2
+            - --model=aqwen3.5:2b
             - --count=0
             - --interval=2s
             - --timeout=60s

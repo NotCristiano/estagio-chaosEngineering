@@ -36,26 +36,28 @@ spec:
           env:
             - name: OLLAMA_HOST
               value: 0.0.0.0
+            - name: OLLAMA_KEEP_ALIVE
+              value: "-1" # Never unload models
           resources:
             limits:
-              memory: "8Gi"
+              memory: "3.5Gi"
               cpu: "4"
             requests:
-              memory: "4Gi"
+              memory: "2Gi"
               cpu: "1"
           livenessProbe:
             httpGet:
               path: /api/tags
               port: 11434
             timeoutSeconds: 20
-            initialDelaySeconds: 20
+            initialDelaySeconds: 40
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/tags
               port: 11434
-            initialDelaySeconds: 20
+            initialDelaySeconds: 40
             periodSeconds: 5
 ---
 # Service, internal access
