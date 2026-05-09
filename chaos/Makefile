@@ -1,4 +1,4 @@
-.PHONY: setup kill-ollama run-latency run-loss report clean
+make.PHONY: setup kill-ollama run-latency run-loss report clean
 
 setup:
 	@echo "Setting up the environment and installing dependencies..."

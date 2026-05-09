@@ -24,7 +24,7 @@ helm-setup:
 
 build-ollama:
 	@echo "Building Ollama image..."
-	docker build -f docker/ollama.Dockerfile -t ${OLLAMA_IMAGE} .
+	docker build --pull -f docker/ollama.Dockerfile -t ${OLLAMA_IMAGE} .
 
 build-docker:
 	@echo "Building Docker image: $(IMAGE)"
@@ -66,9 +66,33 @@ kill-ollama:
 teardown:
 	@echo "Tearing down the environment..."
 	docker compose -f docker/docker-compose.yml down 2>/dev/null || true
-	helm uninstall prometheus -n $(MON_NS) 2>/dev/null || true
-	kubectl delete namespace $(NAMESPACE) $(MON_NS) --ignore-not-found=true
-	@echo "Everything is cleaned up."
+
+	@echo "Uninstalling Helm releases..."
+	heml uninstall prometheus -n $(MON_NS) 2>/dev/null || true
+	helm uninstall chaos-mesh -n $(MESH_NS) 2>/dev/null || true
+
+	@echo "Removing Chaos Mesh CRDs..."
+	kubectl delete crd --selector=app.kubernetes.io/instance=chaos-mesh 2>/dev/null || true
+
+	@echo "Deleting Kubernetes namespaces..."
+	kubectl delete namespace $(NAMESPACE) --ignore-not-found=true --timeout=60s || \
+		kubectl get namespace $(NAMESPACE) -o json | \
+		jq '.spec.finalizers = []' | \
+		kubectl replace --raw "/api/v1/namespaces/$(NAMESPACE)/finalize" -f - 2>/dev/null || true
+
+	kubectl delete namespace $(MON_NS) --ignore-not-found=true --timeout=60s || \
+		kubectl get namespace $(MON_NS) -o json | \
+		jq '.spec.finalizers = []' | \
+		kubectl replace --raw "/api/v1/namespaces/$(MON_NS)/finalize" -f - 2>/dev/null || true
+
+	kubectl delete namespace $(MESH_NS) --ignore-not-found=true --timeout=60s || \
+		kubectl get namespace $(MESH_NS) -o json | \
+		jq '.spec.finalizers = []' | \
+		kubectl replace --raw "/api/v1/namespaces/$(MESH_NS)/finalize" -f - 2>/dev/null || true
+
+	# Now cleanup tries for 60 seconds, if it fails it will force delete the namespaces by removing finalizers
+	@echo "[OK] Everything is cleaned up."
+
 
 pause:
 	@echo "Pausing all workloads in $(NAMESPACE)..."
