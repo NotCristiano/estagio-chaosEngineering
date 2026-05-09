@@ -40,7 +40,7 @@ spec:
               value: "-1" # Never unload models
           resources:
             limits:
-              memory: "3.5Gi"
+              memory: "5Gi"
               cpu: "4"
             requests:
               memory: "2Gi"

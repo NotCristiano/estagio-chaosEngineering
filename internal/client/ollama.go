@@ -20,6 +20,7 @@ type OllamaClient struct {
 type GenerateOptions struct {
 	Temperature float64 `json:"temperature"`
 	NumCtx      int     `json:"num_ctx"`
+	NumPredict  int     `json:"num_predict"`
 }
 
 // GenerateRequest /api/generate
@@ -80,6 +81,7 @@ func (c *OllamaClient) Ping(ctx context.Context, attempt int) ProbeResult {
 		Options: GenerateOptions{
 			Temperature: 0.0, // Greedy
 			NumCtx:      2048,
+			NumPredict:  5,
 		},
 	})
 

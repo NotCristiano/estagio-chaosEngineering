@@ -28,10 +28,10 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --target=http://ollama:11434
-            - --model=aqwen3.5:2b
+            - --model=qwen3.5:2b
             - --count=0
             - --interval=2s
-            - --timeout=60s
+            - --timeout=3m
             - --retries=1
             - --metric-addr=:9090
             - --wait-timeout=5m
