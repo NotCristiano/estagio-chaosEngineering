@@ -1,0 +1,46 @@
+version: 1.0.0
+title: "Poker Survives Concurrency?"
+description: "Alter Poker's deployment to use 30 workers with 100ms intervals"
+
+configuration:
+  prometheus_base_url: "http://localhost:30900"
+
+steady-state-hypothesis:
+  title: "Service is UP (1)"
+  probes:
+    - type: probe
+      name: "check_prometheus_poker_up"
+      tolerance:
+        type: jsonpath
+        path: "$.data.result[0].value[1]"
+        expect: "1"
+      provider:
+        type: python
+        module: chaosprometheus.probes
+        func: query
+        arguments:
+          query: "poker_service_up{container=\"poker\"}"
+
+method:
+  - type: action
+    name: "inject_high_concurrency"
+    provider:
+      type: process
+      path: "sh"
+      arguments:
+        - "-c"
+        - >-
+          kubectl patch deployment chaos-poker -n chaos-production --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["--target=http://ollama:11434", "--model=qwen3.5:2b", "--count=0", "--interval=100ms", "--timeout=3m", "--retries=1", "--metric-addr=:9090", "--wait-timeout=5m", "--workers=30"]}]'
+    pauses:
+      after: 60
+
+rollbacks:
+  - type: action
+    name: "cleanup"
+    provider:
+      type: process
+      path: "sh"
+      arguments:
+        - "-c"
+        - >-
+          kubectl patch deployment chaos-poker -n chaos-production --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["--target=http://ollama:11434", "--model=qwen3.5:2b", "--count=0", "--interval=1s", "--timeout=3m", "--retries=1", "--metric-addr=:9090", "--wait-timeout=5m", "--workers=1"]}]'
