@@ -30,12 +30,12 @@ spec:
             - --target=http://ollama:11434
             - --model=qwen3.5:2b
             - --count=0
-            - --interval=2s
+            - --interval=1s
             - --timeout=3m
             - --retries=1
             - --metric-addr=:9090
             - --wait-timeout=5m
-            - --workers=1
+            - --workers=3
           ports:
             - name: metrics
               containerPort: 9090
