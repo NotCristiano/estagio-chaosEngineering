@@ -1,0 +1,15 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: ollama-memory-leak
+  namespace: chaos-production
+spec:
+  mode: all
+  selector:
+    labelSelectors:
+      app: ollama
+  stressors:
+    memory:
+      workers: 4
+      size: "10GB"
+  duration: "45s"
