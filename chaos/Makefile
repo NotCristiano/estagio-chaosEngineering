@@ -38,6 +38,10 @@ run-scale:
 	@echo "Running scale-poker experiment..."
 	uv run chaos run experiments/scale-poker.yaml
 
+run-concurrency:
+	@echo "Running concurrency-poker..."
+	uv run chaos run experiments/concurrency-poker.yaml
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."
