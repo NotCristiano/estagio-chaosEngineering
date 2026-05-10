@@ -26,6 +26,10 @@ run-dns:
 	@echo "Running dns-failure experiment..."
 	uv run chaos run experiments/dns-poker.yaml
 
+run-oom:
+	@echo "Running memory-leak experiment..."
+	uv run chaos run experiments/oom-ollama.yaml
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."
