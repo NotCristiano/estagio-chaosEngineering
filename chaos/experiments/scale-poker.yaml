@@ -1,0 +1,48 @@
+version: 1.0.0
+title: "Ollama survives Poker scale UP?"
+description: "Scales the Poker deployment to 15 replicas to flood Ollama with concurrent requests."
+
+configuration:
+  prometheus_base_url: "http://localhost:30900"
+
+steady-state-hypothesis:
+  title: "Service is UP (1)"
+  probes:
+    - type: probe
+      name: "check_prometheus_poker_up"
+      tolerance:
+        type: jsonpath
+        path: "$.data.result[0].value[1]"
+        expect: "1"
+      provider:
+        type: python
+        module: chaosprometheus.probes
+        func: query
+        arguments:
+          query: "poker_service_up{container=\"poker\"}"
+
+method:
+  - type: action
+    name: "scale_poker"
+    provider:
+      type: python
+      module: chaosk8s.actions
+      func: scale_deployment
+      arguments:
+        name: "chaos-poker"
+        ns: "chaos-production"
+        replicas: 15
+    pauses:
+      after: 60
+
+rollbacks:
+  - type: action
+    name: "cleanup"
+    provider:
+      type: python
+      module: chaosk8s.actions
+      func: scale_deployment
+      arguments:
+        name: "chaos-poker"
+        ns: "chaos-production"
+        replicas: 1

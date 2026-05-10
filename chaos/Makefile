@@ -34,6 +34,10 @@ run-disk:
 	@echo "Running disk-ollama experiment..."
 	uv run chaos run experiments/disk-ollama.yaml
 
+run-scale:
+	@echo "Running scale-poker experiment..."
+	uv run chaos run experiments/scale-poker.yaml
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."
