@@ -42,6 +42,10 @@ run-concurrency:
 	@echo "Running concurrency-poker..."
 	uv run chaos run experiments/concurrency-poker.yaml
 
+run-bad-request:
+	@echo "Running bad-request-poker..."
+	uv run chaos run experiments/bad-request-poker.yaml
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."
