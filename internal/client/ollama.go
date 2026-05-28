@@ -12,15 +12,16 @@ import (
 
 // OllamaClient wrapping the Ollama API
 type OllamaClient struct {
-	BaseURL    string
-	Model      string
-	HTTPClient *http.Client
+	BaseURL       string
+	Model         string
+	HTTPClient    *http.Client
+	askHTTPClient *http.Client
 }
 
 type GenerateOptions struct {
 	Temperature float64 `json:"temperature"`
 	NumCtx      int     `json:"num_ctx"`
-	NumPredict  int     `json:"num_predict"`
+	NumPredict  int     `json:"num_predict,omitempty"`
 }
 
 // GenerateRequest /api/generate
@@ -52,11 +53,19 @@ func (r ProbeResult) OK() bool {
 	return r.StatusCode == http.StatusOK && r.Error == nil
 }
 
+type AskResult struct {
+	Answer  string
+	Latency time.Duration
+	Error   error
+}
+
 // NewOllamaClient creates a new OllamaClient
 func NewOllamaClient(baseURL, model string, timeout time.Duration) *OllamaClient {
 
-	customTransport := &http.Transport{
-		DisableKeepAlives: true, // we force a new connection for every request
+	newTransport := func() *http.Transport {
+		return &http.Transport{
+			DisableKeepAlives: true,
+		}
 	}
 
 	return &OllamaClient{
@@ -64,7 +73,11 @@ func NewOllamaClient(baseURL, model string, timeout time.Duration) *OllamaClient
 		Model:   model,
 		HTTPClient: &http.Client{
 			Timeout:   timeout,
-			Transport: customTransport,
+			Transport: newTransport(),
+		},
+		askHTTPClient: &http.Client{
+			Timeout:   90 * time.Second,
+			Transport: newTransport(),
 		},
 	}
 }
@@ -118,6 +131,63 @@ func (c *OllamaClient) Ping(ctx context.Context, attempt int) ProbeResult {
 		}
 	}
 	return result
+}
+
+func (c *OllamaClient) Ask(ctx context.Context, prompt string) AskResult {
+	start := time.Now()
+
+	body, err := json.Marshal(GenerateRequest{
+		Model:  c.Model,
+		Prompt: prompt,
+		Stream: false,
+		Options: GenerateOptions{
+			Temperature: 0.0, // Greedy
+			NumCtx:      2048,
+		},
+	})
+	if err != nil {
+		return AskResult{Error: fmt.Errorf("marshal error: %w", err)}
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/generate", bytes.NewReader(body))
+	if err != nil {
+		return AskResult{Error: fmt.Errorf("request build error: %w", err)}
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := c.askHTTPClient.Do(request)
+	latency := time.Since(start)
+	if err != nil {
+		return AskResult{Error: fmt.Errorf("http error: %w", err), Latency: latency}
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return AskResult{Error: fmt.Errorf("bad status code: %d", response.StatusCode), Latency: latency}
+	}
+
+	raw, _ := io.ReadAll(response.Body)
+	var gen GenerateResponse
+
+	if err := json.Unmarshal(raw, &gen); err != nil {
+		return AskResult{Error: fmt.Errorf("unmarshal error: %w", err), Latency: latency}
+	}
+
+	answer := extractAnswer(gen.Response)
+	if answer == "" {
+		return AskResult{Latency: latency, Error: fmt.Errorf("no answer found in response: %s", gen.Response)}
+	}
+	return AskResult{Answer: answer, Latency: time.Since(start), Error: nil}
+}
+
+func extractAnswer(text string) string {
+	for _, ch := range text {
+		switch ch {
+		case 'A', 'B', 'C', 'D':
+			return string(ch)
+		}
+	}
+	return ""
 }
 
 func (c *OllamaClient) HealthCheck(ctx context.Context) (int, time.Duration, error) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"estagio-chaosEngineering/internal/dataset"
 	"estagio-chaosEngineering/internal/metrics"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ func main() {
 	metricsAddr := flag.String("metric-addr", ":9090", "Prometheus metrics address, exposes /metrics")
 	waitTimeout := flag.Duration("wait-timeout", 5*time.Minute, "How long to wait for Ollama to be ready")
 	workers := flag.Int("workers", 1, "Number of concurrent workers")
+	qualityInterval := flag.Duration("quality-interval", 45*time.Second, "Interval between quality checks (ARC-Challenge)")
 	flag.Parse()
 
 	// Signal handler
@@ -57,6 +59,14 @@ func main() {
 			fmt.Printf("  [WARN] Error starting metrics server: %v\n", err)
 		}
 	}()
+
+	// Load ARC Challange dataset for quality checks
+	arc, err := dataset.Load()
+	if err != nil {
+		fmt.Printf("  [WARN] Failed to load ARC dataset: %v\n", err)
+	} else {
+		fmt.Printf("  [OK] Loaded ARC dataset: %d questions\n", arc.Len())
+	}
 
 	// Setup client
 	c := client.NewOllamaClient(*target, *model, *timeout)
@@ -128,6 +138,43 @@ func main() {
 				}
 			}
 		}(w)
+	}
+
+	if arc != nil {
+		accuracy := metrics.NewAccuracyWindow(20)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(*qualityInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					question := arc.Next()
+					askCtx, askCancel := context.WithTimeout(ctx, 90*time.Second)
+					result := c.Ask(askCtx, question.FormatPrompt())
+					askCancel()
+
+					metrics.AskDuration.Observe(result.Latency.Seconds())
+
+					correct := result.Error == nil && result.Answer == question.Answer
+					if correct {
+						metrics.QualityCorrectTotal.Inc()
+					} else {
+						metrics.QualityWrongTotal.Inc()
+					}
+
+					acc := accuracy.Record(correct)
+					metrics.QualityAccuracy.Set(acc)
+
+					reporter.PrintQualityResult(question.ID, result.Answer, question.Answer, correct, result.Latency, result.Error)
+				}
+
+			}
+		}()
 	}
 
 	go func() {
