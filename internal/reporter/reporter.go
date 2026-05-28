@@ -96,3 +96,17 @@ func BuildSummary(results []client.ProbeResult, totalTime time.Duration) Summary
 
 	return s
 }
+
+func PrintQualityResult(id, got, expected string, correct bool, latency time.Duration, err error) {
+	if err != nil {
+		fmt.Printf("\t[QUALITY] %-30s ERROR   %s\n", id, err)
+		return
+	}
+
+	// yes I'm using emojis, judge me
+	mark := "🟢"
+	if !correct {
+		mark = "🔴"
+	}
+	fmt.Printf("\t[QUALITY] %-30s %s  got=%s want=%s  %s\n", id, mark, got, expected, latency.Round(time.Millisecond))
+}
