@@ -14,7 +14,7 @@ import (
 // https://gobyexample.com/embed-directive
 // i've learnt comments have more utility xd
 //
-//go:embed arc-easy.jsonl
+//go:embed arc-challenge.jsonl
 var arcRaw []byte
 
 type rawChoice struct {
@@ -51,6 +51,21 @@ func (q Question) FormatPrompt() string {
 	return sb.String()
 }
 
+func normalizeLabel(label string) string {
+	switch label {
+	case "1":
+		return "A"
+	case "2":
+		return "B"
+	case "3":
+		return "C"
+	case "4":
+		return "D"
+	default:
+		return label
+	}
+}
+
 type Arc struct {
 	questions []Question
 	index     int
@@ -71,7 +86,7 @@ func Load() (*Arc, error) {
 		var choices, labels []string
 		for _, choice := range raw.Question.Choices {
 			choices = append(choices, choice.Text)
-			labels = append(labels, choice.Label)
+			labels = append(labels, normalizeLabel(choice.Label))
 		}
 
 		questions = append(questions, Question{
@@ -79,7 +94,7 @@ func Load() (*Arc, error) {
 			Text:    raw.Question.Stem,
 			Choices: choices,
 			Labels:  labels,
-			Answer:  raw.AnswerKey,
+			Answer:  normalizeLabel(raw.AnswerKey),
 		})
 	}
 

@@ -52,6 +52,12 @@ var (
 		Help: "Number of ARC-Challenge questions answered incorrectly or timed out",
 	})
 
+	// QualityTimeoutTotal counts the number of times the model timed out
+	QualityTimeoutTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "poker_quality_timeout_total",
+		Help: "Number of ARC-Challenge questions timed out",
+	})
+
 	// QualityAccuracy tracks the model's accuracy over time
 	QualityAccuracy = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "poker_quality_accuracy",
@@ -62,7 +68,7 @@ var (
 	AskDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "poker_ask_duration_seconds",
 		Help:    "Latency of each ARC-Challenge Ask probe",
-		Buckets: []float64{1, 5, 10, 20, 30, 45, 60, 90},
+		Buckets: []float64{1, 5, 10, 20, 30, 45, 60, 90, 120, 150, 170},
 	})
 )
 

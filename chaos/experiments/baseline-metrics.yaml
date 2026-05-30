@@ -1,0 +1,357 @@
+version: 1.0.0
+title: "Capture and profile system baseline behavior"
+description: "Holds a 5-minute window under normal conditions to collect instant and median performance baselines across all dashboards."
+
+configuration:
+  prometheus_base_url: "http://localhost:30900"
+  # Using a subquery interval format [window:resolution]
+  baseline_window: "5m:10s"
+
+# Ensure the system is actually healthy before mapping a baseline
+steady-state-hypothesis:
+  title: "poker_service_up is 1"
+  probes:
+    - type: probe
+      name: "check_prometheus_poker_up"
+      tolerance:
+        type: jsonpath
+        path: "$.data.result[0].value[1]"
+        expect: "1"
+      provider:
+        type: python
+        module: chaosprometheus.probes
+        func: query
+        arguments:
+          query: "poker_service_up{container=\"poker\"}"
+
+method:
+  - type: action
+    name: "wait_for_five_minute_baseline_window"
+    provider:
+      type: process
+      path: "echo"
+      arguments:
+        - "Beginning 5-minute baseline..."
+    pauses:
+      after: 300
+
+  # SCRAPING DASHBOARD BASELINES
+  # ARC DASHBOARD METRICS
+  - type: probe
+    name: "arc_poker_accuracy_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "poker_quality_accuracy{container=\"poker\"}"
+
+  - type: probe
+    name: "arc_correct_answers_per_five_minutes"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(poker_quality_correct_total{container=\"poker\"}[5m])"
+
+  - type: probe
+    name: "arc_wrong_answers_per_five_minutes"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(poker_quality_wrong_total{container=\"poker\"}[5m])"
+
+  - type: probe
+    name: "arc_request_latency_p95_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, histogram_quantile(0.95, sum(rate(poker_ask_duration_seconds_bucket{container=\"poker\"}[5m])) by (le))[${baseline_window}])"
+
+  - type: probe
+    name: "arc_request_latency_p50_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, histogram_quantile(0.50, sum(rate(poker_ask_duration_seconds_bucket{container=\"poker\"}[5m])) by (le))[${baseline_window}])"
+
+  # CONTAINER DASHBOARD METRICS
+  - type: probe
+    name: "container_ollama_cpu_consumed_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(container_cpu_usage_seconds_total{container=\"ollama\"}[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "container_ollama_throttled_seconds_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(container_cpu_cfs_throttled_seconds_total{container=\"ollama\"}[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "container_ollama_ram_usage_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "container_memory_working_set_bytes{container=\"ollama\"}"
+
+  - type: probe
+    name: "container_ollama_page_faults_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(container_memory_page_faults_total{container=\"ollama\"}[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "container_ollama_memory_allocation_failures_total"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(container_memory_failures_total{container=\"ollama\", scope=\"container\", type=\"pgmajfault\"}[5m])"
+
+  - type: probe
+    name: "container_ollama_fs_reads_bytes_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(container_fs_reads_bytes_total{container=\"ollama\"}[5m])[${baseline_window}])"
+
+  # INTERNALS DASHBOARD METRICS
+  - type: probe
+    name: "app_action_duration_ratio_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, (sum by (result) (rate(poker_probe_duration_seconds_sum[5m])) / sum by (result) (rate(poker_probe_duration_seconds_count[5m])))[${baseline_window}])"
+
+  - type: probe
+    name: "app_num_retry_pokes_total"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(poker_retry_total{container=\"poker\"}[5m])"
+
+  - type: probe
+    name: "app_go_allocated_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "go_memstats_alloc_bytes{container=\"poker\"}"
+
+  - type: probe
+    name: "app_go_active_goroutines_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "go_goroutines{container=\"poker\"}"
+
+  - type: probe
+    name: "app_go_max_gc_pause_duration_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "go_gc_duration_seconds{container=\"poker\", quantile=\"1.0\"}"
+
+  # KUBERNETES DASHBOARD METRICS
+  - type: probe
+    name: "k8s_ollama_requested_memory_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "kube_pod_container_resource_requests{container=\"ollama\", resource=\"memory\"}"
+
+  - type: probe
+    name: "k8s_ollama_memory_limit_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "kube_pod_container_resource_limits{container=\"ollama\", resource=\"memory\"}"
+
+  - type: probe
+    name: "k8s_ollama_pod_running_phase_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "kube_pod_status_phase{namespace=\"chaos-production\", pod=~\"ollama.*\", phase=\"Running\"}"
+
+  - type: probe
+    name: "k8s_ollama_killed_deployments_total"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(kube_deployment_status_replicas_ready{deployment=\"ollama\"}[5m])"
+
+  # HARDWARE DASHBOARD METRICS
+  - type: probe
+    name: "hw_cpu_iowait_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_cpu_seconds_total{mode=\"iowait\"}[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "hw_cpu_temperatures_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_hwmon_temp_celsius"
+
+  - type: probe
+    name: "hw_cpu_context_switches_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_context_switches_total[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "hw_ram_available_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_memory_MemAvailable_bytes"
+
+  - type: probe
+    name: "hw_kernel_buffers_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_memory_Buffers_bytes"
+
+  - type: probe
+    name: "hw_swap_cached_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_memory_SwapCached_bytes"
+
+  - type: probe
+    name: "hw_swap_free_bytes_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_memory_SwapFree_bytes"
+
+  - type: probe
+    name: "hw_disk_read_time_seconds_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_disk_read_time_seconds_total"
+
+  - type: probe
+    name: "hw_disk_write_time_seconds_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_disk_write_time_seconds_total"
+
+  - type: probe
+    name: "hw_disk_io_in_progress_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_disk_io_now"
+
+  - type: probe
+    name: "hw_disk_read_throughput_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_disk_read_bytes_total[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "hw_disk_written_throughput_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_disk_written_bytes_total[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "hw_network_active_conntrack_entries_instant"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "node_nf_conntrack_entries"
+
+  - type: probe
+    name: "hw_network_receive_drop_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_network_receive_drop_total{device=\"enp2s0\"}[5m])[${baseline_window}])"
+
+  - type: probe
+    name: "hw_network_transmit_errs_rate_median"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "quantile_over_time(0.5, rate(node_network_transmit_errs_total{device=\"enp2s0\"}[5m])[${baseline_window}])"

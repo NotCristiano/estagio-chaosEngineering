@@ -36,6 +36,11 @@ spec:
             - --metric-addr=:9090
             - --wait-timeout=5m
             - --workers=1
+            - --quality-interval=1s
+            - --probe-num-predict=2
+            - --probe-num-ctx=2048
+            - --ask-num-predict=10
+            - --ask-timeout-fraction=0.9
           ports:
             - name: metrics
               containerPort: 9090

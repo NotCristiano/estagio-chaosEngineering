@@ -12,10 +12,13 @@ import (
 
 // OllamaClient wrapping the Ollama API
 type OllamaClient struct {
-	BaseURL       string
-	Model         string
-	HTTPClient    *http.Client
-	askHTTPClient *http.Client
+	BaseURL         string
+	Model           string
+	HTTPClient      *http.Client
+	askHTTPClient   *http.Client
+	ProbeNumPredict int
+	ProbeNumCtx     int
+	AskNumPredict   int
 }
 
 type GenerateOptions struct {
@@ -30,12 +33,14 @@ type GenerateRequest struct {
 	Prompt  string          `json:"prompt"`
 	Stream  bool            `json:"stream"`
 	Options GenerateOptions `json:"options"`
+	Think   bool            `json:"think"`
 }
 
 // GenerateResponse holds what we care about from /api/generate
 type GenerateResponse struct {
 	Model    string `json:"model"`
 	Response string `json:"response"`
+	Thinking bool   `json:"thinking"`
 	Done     bool   `json:"done"`
 }
 
@@ -54,13 +59,14 @@ func (r ProbeResult) OK() bool {
 }
 
 type AskResult struct {
-	Answer  string
-	Latency time.Duration
-	Error   error
+	Answer   string
+	Latency  time.Duration
+	Error    error
+	TimedOut bool
 }
 
 // NewOllamaClient creates a new OllamaClient
-func NewOllamaClient(baseURL, model string, timeout time.Duration) *OllamaClient {
+func NewOllamaClient(baseURL, model string, timeout time.Duration, probeNumPredict, probeNumCtx, askNumPredict int) *OllamaClient {
 
 	newTransport := func() *http.Transport {
 		return &http.Transport{
@@ -69,14 +75,17 @@ func NewOllamaClient(baseURL, model string, timeout time.Duration) *OllamaClient
 	}
 
 	return &OllamaClient{
-		BaseURL: baseURL,
-		Model:   model,
+		BaseURL:         baseURL,
+		Model:           model,
+		ProbeNumPredict: probeNumPredict,
+		ProbeNumCtx:     probeNumCtx,
+		AskNumPredict:   askNumPredict,
 		HTTPClient: &http.Client{
 			Timeout:   timeout,
 			Transport: newTransport(),
 		},
 		askHTTPClient: &http.Client{
-			Timeout:   90 * time.Second,
+			Timeout:   10 * time.Minute, // context manages pratic timeout in main
 			Transport: newTransport(),
 		},
 	}
@@ -93,8 +102,8 @@ func (c *OllamaClient) Ping(ctx context.Context, attempt int) ProbeResult {
 		Stream: false,
 		Options: GenerateOptions{
 			Temperature: 0.0, // Greedy
-			NumCtx:      2048,
-			NumPredict:  5,
+			NumCtx:      c.ProbeNumCtx,
+			NumPredict:  c.ProbeNumPredict,
 		},
 	})
 
@@ -140,9 +149,11 @@ func (c *OllamaClient) Ask(ctx context.Context, prompt string) AskResult {
 		Model:  c.Model,
 		Prompt: prompt,
 		Stream: false,
+		Think:  false,
 		Options: GenerateOptions{
-			Temperature: 0.0, // Greedy
+			Temperature: 0.0, // Greedy, first token should be the answer
 			NumCtx:      2048,
+			NumPredict:  c.AskNumPredict,
 		},
 	})
 	if err != nil {
@@ -158,7 +169,8 @@ func (c *OllamaClient) Ask(ctx context.Context, prompt string) AskResult {
 	response, err := c.askHTTPClient.Do(request)
 	latency := time.Since(start)
 	if err != nil {
-		return AskResult{Error: fmt.Errorf("http error: %w", err), Latency: latency}
+		timedOut := ctx.Err() != nil
+		return AskResult{Error: fmt.Errorf("http error: %w", err), Latency: latency, TimedOut: timedOut}
 	}
 	defer response.Body.Close()
 

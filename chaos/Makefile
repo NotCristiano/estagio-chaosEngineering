@@ -46,6 +46,14 @@ run-bad-request:
 	@echo "Running bad-request-poker..."
 	uv run chaos run experiments/bad-request-poker.yaml
 
+run-baseline:
+	@echo "Running baseline-metrics..."
+	uv run chaos run experiments/baseline-metrics.yaml --journal-path=baseline_journal.json
+
+report-baseline:
+	@echo "Generating HTML baseline report..."
+	uv run chaos report --export-format=html baseline_journal.json baseline_report.html
+
 # WARNING: pandoc must be installed on the system for this to work
 report:
 	@echo "Generating HTML report from journal.json..."

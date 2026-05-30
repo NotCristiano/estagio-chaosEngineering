@@ -33,6 +33,10 @@ func main() {
 	waitTimeout := flag.Duration("wait-timeout", 5*time.Minute, "How long to wait for Ollama to be ready")
 	workers := flag.Int("workers", 1, "Number of concurrent workers")
 	qualityInterval := flag.Duration("quality-interval", 45*time.Second, "Interval between quality checks (ARC-Challenge)")
+	probeNumPredict := flag.Int("probe-num-predict", 5, "Max tokens Ollama generates per Ping probe")
+	probeNumCtx := flag.Int("probe-num-ctx", 2048, "Context window size for Ping probes")
+	askNumPredict := flag.Int("ask-num-predict", 512, "Max tokens for ARC-Challenge Ask Requests")
+	askTimeoutFraction := flag.Float64("ask-timeout-fraction", 0.8, "Ask timeout as a fraction of qualityInterval")
 	flag.Parse()
 
 	// Signal handler
@@ -68,8 +72,11 @@ func main() {
 		fmt.Printf("  [OK] Loaded ARC dataset: %d questions\n", arc.Len())
 	}
 
+	// Setup timeout Ask fraction
+	askTimeout := time.Duration(float64(*qualityInterval) * *askTimeoutFraction)
+
 	// Setup client
-	c := client.NewOllamaClient(*target, *model, *timeout)
+	c := client.NewOllamaClient(*target, *model, *timeout, *probeNumPredict, *probeNumCtx, *askNumPredict)
 
 	reporter.PrintHeader(*target, *model, *count, *interval)
 
@@ -154,7 +161,7 @@ func main() {
 					return
 				case <-ticker.C:
 					question := arc.Next()
-					askCtx, askCancel := context.WithTimeout(ctx, 90*time.Second)
+					askCtx, askCancel := context.WithTimeout(ctx, askTimeout)
 					result := c.Ask(askCtx, question.FormatPrompt())
 					askCancel()
 
@@ -163,6 +170,8 @@ func main() {
 					correct := result.Error == nil && result.Answer == question.Answer
 					if correct {
 						metrics.QualityCorrectTotal.Inc()
+					} else if result.TimedOut {
+						metrics.QualityTimeoutTotal.Inc()
 					} else {
 						metrics.QualityWrongTotal.Inc()
 					}
