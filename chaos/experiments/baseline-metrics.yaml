@@ -65,6 +65,15 @@ method:
         query: "increase(poker_quality_wrong_total{container=\"poker\"}[5m])"
 
   - type: probe
+    name: "arc_timedout_answers_per_five_minutes"
+    provider:
+      type: python
+      module: chaosprometheus.probes
+      func: query
+      arguments:
+        query: "increase(poker_quality_timeout_total{container=\"poker\"}[5m])"
+
+  - type: probe
     name: "arc_request_latency_p95_median"
     provider:
       type: python
