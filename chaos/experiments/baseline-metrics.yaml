@@ -1,7 +1,8 @@
 version: 1.0.0
-title: "Capture and profile system baseline behavior"
-description: "Holds a 5-minute window under normal conditions to collect instant and median performance baselines across all dashboards."
+title: "Capture and Profile System Baseline Behavior"
+description: "Holds a 5-minute window under normal conditions to collect instant and median performance baselines across all dashboards. Establishes the control baseline against which disruption experiments are compared."
 
+# CONFIGURATION
 configuration:
   prometheus_base_url: "http://localhost:30900"
   # Using a subquery interval format [window:resolution]
@@ -9,7 +10,7 @@ configuration:
 
 # Ensure the system is actually healthy before mapping a baseline
 steady-state-hypothesis:
-  title: "poker_service_up is 1"
+  title: "System is Operational"
   probes:
     - type: probe
       name: "check_prometheus_poker_up"
@@ -25,17 +26,21 @@ steady-state-hypothesis:
           query: "poker_service_up{container=\"poker\"}"
 
 method:
+  # SETUP & INITIAL STATE
+  # Wait for the system to stabilize before collecting baseline data
   - type: action
     name: "wait_for_five_minute_baseline_window"
     provider:
       type: process
       path: "echo"
       arguments:
-        - "Beginning 5-minute baseline..."
+        - "Beginning baseline collection..."
     pauses:
       after: 300
 
-  # SCRAPING DASHBOARD BASELINES
+  # BASELINE COLLECTION
+  # Capture all dashboard metrics for comparison against disruption scenarios
+  
   # ARC DASHBOARD METRICS
   - type: probe
     name: "arc_poker_accuracy_instant"
@@ -92,6 +97,7 @@ method:
         query: "quantile_over_time(0.5, histogram_quantile(0.50, sum(rate(poker_ask_duration_seconds_bucket{container=\"poker\"}[5m])) by (le))[${baseline_window}])"
 
   # CONTAINER DASHBOARD METRICS
+  # Resource utilization and memory stress indicators
   - type: probe
     name: "container_ollama_cpu_consumed_median"
     provider:
@@ -146,7 +152,8 @@ method:
       arguments:
         query: "quantile_over_time(0.5, rate(container_fs_reads_bytes_total{container=\"ollama\"}[5m])[${baseline_window}])"
 
-  # INTERNALS DASHBOARD METRICS
+  # APPLICATION INTERNALS DASHBOARD METRICS
+  # Application-level performance and resource tracking
   - type: probe
     name: "app_action_duration_ratio_median"
     provider:
@@ -193,6 +200,7 @@ method:
         query: "go_gc_duration_seconds{container=\"poker\", quantile=\"1.0\"}"
 
   # KUBERNETES DASHBOARD METRICS
+  # Pod and deployment resource allocation and status
   - type: probe
     name: "k8s_ollama_requested_memory_bytes_instant"
     provider:
@@ -230,6 +238,7 @@ method:
         query: "increase(kube_deployment_status_replicas_ready{deployment=\"ollama\"}[5m])"
 
   # HARDWARE DASHBOARD METRICS
+  # CPU, memory, disk, and network hardware-level metrics
   - type: probe
     name: "hw_cpu_iowait_median"
     provider:

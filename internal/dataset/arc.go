@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"strings"
 	"sync"
 )
@@ -101,6 +102,13 @@ func Load() (*Arc, error) {
 	if len(questions) == 0 {
 		return nil, fmt.Errorf("no questions found")
 	}
+
+	fixedSeed := rand.NewSource(0401)
+	random := rand.New(fixedSeed)
+
+	random.Shuffle(len(questions), func(i, j int) {
+		questions[i], questions[j] = questions[j], questions[i]
+	})
 
 	return &Arc{questions: questions}, nil
 }

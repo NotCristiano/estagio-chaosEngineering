@@ -8,7 +8,7 @@ metadata:
     project: chaos-engineering
 
 ---
-# Ollama deployment (CPU only parts commented out)
+# Ollama deployment (commented parameters are for GPU usage)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,22 +36,24 @@ spec:
           env:
             - name: OLLAMA_HOST
               value: 0.0.0.0
+            - name: OLLAMA_NUM_CTX
+              value: "2048"
             - name: OLLAMA_KEEP_ALIVE
-              value: "-1" # Never unload models
+              value: "-1" # Never unload mode
             - name: OLLAMA_NUM_PARALLEL
-              value: "4"
-            - name: HSA_OVERRIDE_GFX_VERSION
-              value: "10.3.0"
-          securityContext:
-            privileged: true
+              value: "0"
+            # - name: HSA_OVERRIDE_GFX_VERSION
+            #   value: "10.3.0"
+          # securityContext:
+          #   privileged: true
           resources:
             limits:
-              memory: "5Gi"
-              cpu: "4"
+              memory: "6Gi"
+              cpu: "8"
               ephemeral-storage: "2Gi"
             requests:
-              memory: "2Gi"
-              cpu: "1"
+              memory: "3Gi"
+              cpu: "2"
               ephemeral-storage: "500Mi"
           livenessProbe:
             httpGet:
@@ -67,18 +69,19 @@ spec:
               port: 11434
             initialDelaySeconds: 40
             periodSeconds: 5
-          volumeMounts:
-            - mountPath: /dev/kfd
-              name: dev-kfd
-            - mountPath: /dev/dri
-              name: dev-dri
-      volumes:
-        - name: dev-kfd
-          hostPath:
-            path: /dev/kfd
-        - name: dev-dri
-          hostPath:
-            path: /dev/dri
+            timeoutSeconds: 5
+          # volumeMounts:
+          #   - mountPath: /dev/kfd
+          #     name: dev-kfd
+          #   - mountPath: /dev/dri
+          #     name: dev-dri
+      # volumes:
+      #   - name: dev-kfd
+      #     hostPath:
+      #       path: /dev/kfd
+      #   - name: dev-dri
+      #     hostPath:
+      #       path: /dev/dri
 ---
 # Service, internal access
 apiVersion: v1

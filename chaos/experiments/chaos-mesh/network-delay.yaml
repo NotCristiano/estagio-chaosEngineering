@@ -1,14 +1,17 @@
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
-  name: ollama-delay
+  name: network-delay
   namespace: chaos-production
 spec:
   action: delay
   mode: all
   selector:
+    namespaces:
+      - chaos-production
     labelSelectors:
       app: ollama
   delay:
-    latency: "15s"
-  duration: "40s"
+    latency: '150ms'
+    correlation: '50'
+    jitter: '10ms'

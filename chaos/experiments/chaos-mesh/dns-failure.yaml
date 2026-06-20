@@ -7,8 +7,13 @@ spec:
   action: error
   mode: all
   selector:
+    namespaces:
+      - chaos-production
     labelSelectors:
       app: chaos-poker
   patterns:
-    - 'ollama*'
-  duration: "15s"
+    - ollama
+    - ollama.chaos-production
+    - ollama.chaos-production.svc
+    - ollama.chaos-production.svc.cluster.local
+    - ollama.chaos-production.svc.cluster.local.

@@ -1,7 +1,7 @@
 services:
   ollama:
-    #    image: ollama/ollama:latest # this is for cpu support
-    image: ollama/ollama:rocm # this is for gpu support
+    image: ollama/ollama:latest # this is for cpu support
+    # image: ollama/ollama:rocm # this is for gpu support
     container_name: ollama
     restart: unless-stopped
     ports:
@@ -9,11 +9,11 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     # again, this is for gpu support
-    devices:
-      - /dev/kfd:/dev/kfd
-      - /dev/dri:/dev/dri
+    # devices:
+    #   - /dev/kfd:/dev/kfd
+    #   - /dev/dri:/dev/dri
     environment:
-      - HSA_OVERRIDE_GFX_VERSION=10.3.0
+      # - HSA_OVERRIDE_GFX_VERSION=10.3.0
       - OLLAMA_HOST=0.0.0.0
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]

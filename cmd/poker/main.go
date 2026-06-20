@@ -148,7 +148,7 @@ func main() {
 	}
 
 	if arc != nil {
-		accuracy := metrics.NewAccuracyWindow(300)
+		accuracy := metrics.NewAccuracyWindow(100)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

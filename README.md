@@ -1,100 +1,88 @@
-# Chaos Engineering Poker
-We will use primarly the `Makefile` to run this project:
+# estagio-chaosEngineering
 
-- `make run-no-monitor`: start Ollama locally with Docker Compose.
-- `make run-with-monitor`: installs Prometheus + Grafana in k3s, then starts Ollama.
-- `make poke`: runs the poker app.
-- `make deploy-k8s`: deploys Ollama, Poker and the monitoring stack to k8s.
-- `make kill-ollama`: kills the local Ollama in k8s so we can observe changes in grafana.
+Chaos engineering project for an Ollama-based question-answering service.
 
-## Running the poker app
+The Go application sends probes to Ollama, exposes Prometheus metrics, and can run periodic quality checks with the ARC dataset. The repository also includes Kubernetes manifests, monitoring setup, and Chaos Toolkit experiments.
 
-Run this to setup the repository on your environment:
+## Structure
 
-### 1) Prerequisites
+- `cmd/poker`: Go application entrypoint
+- `internal`: Ollama client, metrics, dataset loading, reporting
+- `k8s`: Kubernetes manifests and Grafana dashboards
+- `docker`: container definitions
+- `chaos`: Chaos Toolkit experiments and reporting commands
 
-- Docker + Docker Compose
+## Prerequisites
+
+- `go`
+- `make`
+- `docker`
 - `kubectl`
 - `helm`
-- `k3s` (or another Kubernetes cluster)
+- `k3s`
+- `uv` for the commands under `chaos/`
 
-Quick check:
+## Main workflow
 
-```fish
-docker --version
-docker compose version
-kubectl version --client
-helm version
-kubectl get nodes
-```
+Deploy the full environment:
 
-### 2) Local Ollama only
-
-Start Ollama in the foreground:
-
-```fish
-make run-no-monitor
-```
-
-### 3) Ollama + monitoring
-
-Install the monitoring stack in k3s and start Ollama in the foreground:
-
-```fish
-make run-with-monitor
-```
-
-This does two things:
-
-1. Installs Prometheus + Grafana using `k8s/prometheus-values.yaml`.
-2. Starts Ollama locally with Docker Compose.
-
-If you need the model loaded into the local Ollama container, run the follow:
-
-```fish
-docker exec -it ollama ollama pull llama3.2
-```
-
-### 4) Running the poker
-
-
-The poker app is separate from Ollama. It connects to the local Ollama instance at `http://localhost:11434`.
-
-Start it with:
-
-```fish
-make poke
-```
-
-`make poke` builds the binary if needed and then runs it forever with:
-
-- target: `http://localhost:11434`
-- model: `llama3.2`
-- interval: `5s`
-- count: `0` (infinite)
-
-Stop it with `Ctrl+C`.
-
-### 5) Deploying everything to k8s
-You can deploy Ollama, the poker app and the monitoring stack to k3s with:
-
-```fish
+```bash
 make deploy-k8s
 ```
 
-This will install the monitoring stack using `k8s/prometheus-values.yaml` and then deploy Ollama and the poker app.
+Tail application logs:
 
-### 6) Killing Ollama in k8s
-You can kill Ollama in k8s with:
-```fish
-make kill-ollama
+```bash
+make logs
 ```
-This will temporarily remove the Ollama deployment from k8s, that way we can observe changes in grafana. Like the success and failure rate.
 
-### 7) Port forwarding (JUST IN CASE)
-If for some reason it's not working for you, try to setup port forwarding, here's an example:
+Pause or resume the environment:
 
-```fish
-kubectl -n monitoring port-forward svc/prometheus-grafana 3000:80
-kubectl -n monitoring port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
+```bash
+make pause
+make resume
 ```
+
+Remove the environment:
+
+```bash
+make teardown
+```
+
+## Root Makefile
+
+Relevant commands from the main `Makefile`:
+
+- `make deploy-k8s`: builds the images, installs monitoring and Chaos Mesh, and deploys the app to Kubernetes
+- `make logs`: tails the `chaos-poker` application logs
+- `make logs-ollama`: tails the Ollama pod logs
+- `make kill-ollama`: deletes the Ollama pod so Kubernetes recreates it
+- `make pause`: scales the workloads down to zero
+- `make resume`: scales the workloads back up
+- `make teardown`: removes the deployed environment
+
+## chaos/Makefile
+
+Available commands in `chaos/Makefile`:
+
+- `make -C chaos setup`
+- `make -C chaos run-baseline`
+- `make -C chaos report-baseline`
+- `make -C chaos run-stress-cpu`
+- `make -C chaos run-latency`
+- `make -C chaos run-loss`
+- `make -C chaos run-dns`
+- `make -C chaos run-oom`
+- `make -C chaos run-disk`
+- `make -C chaos run-scale`
+- `make -C chaos run-concurrency`
+- `make -C chaos run-bad-request`
+- `make -C chaos kill-ollama`
+- `make -C chaos report-comparison`
+- `make -C chaos clean`
+
+## Notes
+
+- The Kubernetes deployment uses the `chaos-production` namespace for the application.
+- Monitoring is installed in `monitoring`.
+- Chaos Mesh is installed in `chaos-testing`.
