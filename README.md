@@ -142,8 +142,6 @@ The generated baseline and comparison HTML reports are written under `chaos/`, a
 | `run-bad-request` | Invalid model configuration |
 | `kill-ollama` | Ollama pod deletion |
 
-These are the available runner targets, not a claim that every scenario has a validated result in the report. Some tests became unsuitable as the environment evolved and should be checked against the current configuration.
-
 ### Logs and lifecycle
 
 ```bash
@@ -168,15 +166,7 @@ make resume
 | `poker_quality_accuracy` | Rolling score produced by the ARC evaluation loop. |
 | `poker_ask_duration_seconds` | ARC-Challenge request latency. |
 
-The five custom dashboards are versioned in [`k8s/dashboards/`](k8s/dashboards/). Provisioning them from YAML avoids relying on dashboards created only through the Grafana UI.
-
-## Scope and limitations
-
-- This is a local academic prototype, not a high-availability or production deployment. Recovery after a fault can include downtime.
-- A probe's exported latency covers its final attempt; it does not include the entire retry/backoff sequence. `poker_service_up` represents the latest outcome, not a complete availability SLO.
-- The ARC rolling score counts unsuccessful checks as incorrect, while timeouts also have a separate counter. A falling score alone cannot establish that completed model answers became less correct.
-- The report describes the model progression from `llama3.2:3b` through `qwen3:2b` to `qwen2.5:3b`. The current Kubernetes deployment and Ollama image use `qwen2.5:3b`; the standalone CLI has a different model default.
-- Images and Helm charts are not fully pinned. Fixing versions and retaining journals, machine details and experiment settings would improve reproducibility.
+The five custom dashboards are versioned in [`k8s/dashboards/`](k8s/dashboards/).
 
 ## Repository guide and sources
 
