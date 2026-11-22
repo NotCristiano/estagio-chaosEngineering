@@ -189,6 +189,4 @@ The five custom dashboards are versioned in [`k8s/dashboards/`](k8s/dashboards/)
 | [`chaos/`](chaos/) | Experiment definitions, runners and generated local reports |
 | [`ENUNCIADO.md`](ENUNCIADO.md) | Original assignment, timeline and explanation of the implemented scope |
 
-Project evidence: [internship report](https://docs.google.com/document/d/1SJ2ge7uZ9S4-QSTJBCGWu5XQYScrM951/edit) and [presentation](https://docs.google.com/presentation/d/1QucPlHPwDxAyIRzCfNlD1s7xqI2FMh4GpxLYUXq_VHE/edit). Access to the source documents depends on their existing sharing permissions; the selected screenshots are included locally above.
-
 The original assignment is preserved as [`docs/original-project-brief.pdf`](docs/original-project-brief.pdf). ARC data provenance is recorded in the [dataset loader](internal/dataset/arc.go), which references the [ARC dataset on Kaggle](https://www.kaggle.com/datasets/jeromeblanchet/arc-ai2-reasoning-challenge).
